@@ -13,8 +13,10 @@ Usage
 
 - `Limelight [0.0 ~ 1.0]`
     - Turn Limelight on
+- `Limelight`
+    - New Feature: Turn Limelight off (current window)
 - `Limelight!`
-    - Turn Limelight off
+    - Turn Limelight off (all windows)
 - `Limelight!! [0.0 ~ 1.0]`
     - Toggle Limelight
 
