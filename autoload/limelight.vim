@@ -85,14 +85,52 @@ function! s:limelight()
   let w:limelight_prev = extend(curr, paragraph)
 endfunction
 
-function! s:hl(startline, endline)
+function! s:hl(ranges)
   let w:limelight_match_ids = get(w:, 'limelight_match_ids', [])
   let priority = get(g:, 'limelight_priority', 10)
-  call add(w:limelight_match_ids, matchadd('LimelightDim', '\%<'.a:startline.'l', priority))
-  if a:endline > 0
-    call add(w:limelight_match_ids, matchadd('LimelightDim', '\%>'.a:endline.'l', priority))
-  endif
+  " Sort and merge overlapping ranges
+  let sortedRanges = sort(a:ranges, 's:compareRanges')
+  let mergedRanges = s:mergeRanges(sortedRanges)
+  " Apply global dimming, except for specified ranges
+  call add(w:limelight_match_ids, matchadd('LimelightDim', '\%<'.mergedRanges[0][0].'l\|\%>'.mergedRanges[-1][-1].'l', priority))
+
+  " Process gaps, apply dimming highlights
+  for i in range(len(mergedRanges)-1)
+    let startGap = mergedRanges[i][-1]
+    let endGap = mergedRanges[i+1][0]
+    if startGap <= endGap
+      if startGap == endGap
+         let startGap = startGap + 1
+         let endGap = endGap - 1
+         call add(w:limelight_match_ids, matchadd('LimelightDim', '\%'.startGap.'l', priority))
+       else
+         call add(w:limelight_match_ids, matchadd('LimelightDim', '\%>'.startGap.'l\%<'.endGap.'l', priority))
+      endif
+    endif
+  endfor
 endfunction
+
+" Helper function: compare two ranges
+function! s:compareRanges(r1, r2)
+  return a:r1[0] - a:r2[0]
+endfunction
+
+" Helper function: merge overlapping ranges
+function! s:mergeRanges(ranges)
+  let result = []
+  let currentRange = a:ranges[0]
+  for range in a:ranges
+    if range[0] <= currentRange[1] + 1
+      let currentRange[1] = max([currentRange[1], range[1]])
+    else
+      call add(result, currentRange)
+      let currentRange = range
+    endif
+  endfor
+  call add(result, currentRange)
+  return result
+endfunction
+
 
 function! s:clear_hl()
   while exists('w:limelight_match_ids') && !empty(w:limelight_match_ids)
@@ -209,7 +247,8 @@ function! s:on(range, ...)
   let w:limelight_range = a:range
   if !empty(a:range)
     call s:clear_hl()
-    call call('s:hl', a:range)
+    " call call('s:hl', a:range)
+    call s:hl(a:range)
   endif
 
   augroup limelight
@@ -256,6 +295,20 @@ endfunction
 
 function! limelight#execute(bang, visual, line1, line2, ...)
   let range = a:visual ? [a:line1, a:line2] : []
+  if !exists('w:limelight_range')
+    let w:limelight_range = []
+  end
+  if a:visual 
+      let tempRanges = copy(w:limelight_range)
+      call add(tempRanges, range)
+      let range = tempRanges
+  else
+    let range = [range]
+  endif
+
+  " deduplicate ranges
+  let range = UniqueRanges(range)
+
   if a:bang
     if a:0 > 0 && a:1 =~ '^!' && !s:is_on()
       if len(a:1) > 1
@@ -273,10 +326,22 @@ function! limelight#execute(bang, visual, line1, line2, ...)
   endif
 endfunction
 
+function! UniqueRanges(ranges)
+  let unique_ranges = []
+  let seen = {}
+  for range in a:ranges
+    let key = string(range)
+    if !has_key(seen, key)
+      call add(unique_ranges, range)
+      let seen[key] = 1
+    endif
+  endfor
+  return unique_ranges
+endfunction
+
 function! limelight#operator(...)
   call limelight#execute(0, 1, line("'["), line("']"))
 endfunction
 
 let &cpo = s:cpo_save
 unlet s:cpo_save
-
