@@ -323,6 +323,7 @@ function! limelight#execute(bang, visual, line1, line2, ...)
     call s:on(range, a:1)
   else
     if range == [[]] || range == []
+      let w:limelight_range = []
       call s:clear_hl()
     else
       call s:on(range)
