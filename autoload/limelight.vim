@@ -322,7 +322,11 @@ function! limelight#execute(bang, visual, line1, line2, ...)
   elseif a:0 > 0
     call s:on(range, a:1)
   else
-    call s:on(range)
+    if range == [[]] || range == []
+      call s:clear_hl()
+    else
+      call s:on(range)
+    endif
   endif
 endfunction
 
